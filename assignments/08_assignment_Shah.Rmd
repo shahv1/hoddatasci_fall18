@@ -1,0 +1,104 @@
+Assignment 8
+---
+
+"When life gives you lemons, don’t make lemonade. Make life take the lemons back! Get mad!" -Cave Johnson
+
+For this assignment, you'll be using the lemons dataset, which is a subset of the dataset used for a Kaggle competition described here: 
+https://www.kaggle.com/c/DontGetKicked/data. Your job is to predict which cars are most likely to be lemons. 
+
+Complete the following steps.
+```{r libraries}
+library(tidyverse)
+library(knitr)
+library(caret)
+library(forcats)
+library(tidytext)
+library(stringr)
+library(AUC)
+```
+1. Calculate the proportion of lemons in the training dataset using the `IsBadBuy` variable. 
+```{r}
+lemon%>%
+count(IsBadBuy)%>% 
+mutate(p=prop.table(n))%>% 
+kable(format="markdown") 
+```
+2. Calculate the proportion of lemons by Make. 
+```{r}
+g_table<-table(lemon$Make,lemon$IsBadBuy);g_table
+
+prop.table(g_table,margin=1)
+```
+3. Now, predict the probability of being a lemon using a linear model (`lm(y~x`), with covariates of your choosing from the training dataset. 
+```{r}
+lm_mod<-lm(IsBadBuy~
+             Make+
+             WheelType+Nationality+Transmission+Auction,
+           data=lemon,y=TRUE,na.exclude=TRUE);summary(lm_mod)
+```
+4. Make predictions from the linear model.
+```{r}
+
+lm_predict<-predict(lm_mod)
+
+
+lm_predict_bin<-ifelse(lm_predict>.5,1,0)
+
+
+lm_table<-table(lm_predict_bin,lm_mod$y)
+
+pcp<-(lm_table[1,1]+lm_table[2,2])/sum(lm_table)
+
+pred_table<-prop.table(lm_table,margin=1)
+
+View(pred_table)
+```
+5. Calculate the AUC for the linear predictions from the ROC against the outcome for the training dataset. 
+```{r}
+lm_predict_no_na<-na.omit(lm_predict)
+
+lm_roc<-roc(lm_predict_no_na,as.factor(lm_mod$y))
+
+auc(lm_roc)
+ 
+plot(lm_roc)
+```
+6. Now, predict the probability of being a lemon using a logistic regression
+(`glm(y~x,family=binomial(link="logit")`)), again using covariates of your choosing. Add these to the existing linear model already give to you.  
+```{r}
+logit_mod<-glm(IsBadBuy~
+             Make+
+             WheelType+Nationality+Transmission+Auction,
+             data=lemon,
+            na.action=na.exclude,
+            family=binomial(link="logit"),
+               y=TRUE)
+
+summary(logit_mod)
+
+```
+7. Make predictions from the logit model. Make sure these are probabilities. 
+```{r}
+logit_predict<-predict(logit_mod,type="response")
+logit_predict_bin<-rep(0,length(logit_predict))
+
+logit_predict_bin[logit_predict>=.5]<-1
+
+logit_table<-table(logit_predict_bin,lemon$IsBadBuy)
+
+pcp_logit<-(logit_table[1,1]+logit_table[2,2])/sum(logit_table)
+
+pred_table<-prop.table(lm_table,margin=1)
+
+View(pred_table)
+```
+8. Calculate the AUC for the predictions from the ROC based on the logit model. 
+```{r}
+logit_predict_no_na<-na.omit(logit_predict)
+
+logit_roc<-roc(logit_predict_no_na,as.factor(logit_mod$y))
+
+auc(logit_roc)
+ 
+plot(logit_roc)
+```
